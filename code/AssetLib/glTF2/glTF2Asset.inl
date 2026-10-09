@@ -1038,13 +1038,38 @@ inline size_t Accessor::GetMaxByteSize() {
 }
 
 template <class T>
-size_t Accessor::ExtractData(T *&outData, const std::vector<unsigned int> *remappingIndices) {
+size_t Accessor::ExtractData(T *&outData, const std::vector<unsigned int> *remappingIndices)
+{
+    const size_t usedCount =
+        (remappingIndices != nullptr) ? remappingIndices->size() : count;
+
     uint8_t *data = GetPointer();
-    if (!data) {
-        throw DeadlyImportError("GLTF2: data is null when extracting data from ", getContextForErrorMessages(id, name));
+
+    // glTF 2.0: an accessor without a bufferView and without sparse data
+    // is implicitly initialized to zero.
+    if (!data && !bufferView && !sparse) {
+        if (remappingIndices != nullptr) {
+            for (size_t srcIdx : *remappingIndices) {
+                if (srcIdx >= count) {
+                    throw DeadlyImportError(
+                        "GLTF: index ", srcIdx,
+                        " >= count ", count,
+                        " in ",
+                        getContextForErrorMessages(id, name));
+                }
+            }
+        }
+
+        outData = new T[usedCount]();
+        return usedCount;
     }
 
-    const size_t usedCount = (remappingIndices != nullptr) ? remappingIndices->size() : count;
+    if (!data) {
+        throw DeadlyImportError(
+            "GLTF2: data is null when extracting data from ",
+            getContextForErrorMessages(id, name));
+    }
+
     const size_t elemSize = GetElementSize();
     const size_t totalSize = elemSize * usedCount;
 
